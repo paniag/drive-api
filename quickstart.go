@@ -11,14 +11,13 @@ import (
   "os/user"
   "path/filepath"
   "sort"
-  "strings"
 
   "golang.org/x/net/context"
   "golang.org/x/oauth2"
   "golang.org/x/oauth2/google"
   "google.golang.org/api/drive/v3"
 
-  "private/data"
+  "experimental/drive-api/private"
 )
 
 // getClient uses a Context and Config to retrieve a Token
@@ -115,7 +114,7 @@ func main() {
   }
 
   r, err := srv.Files.List().PageSize(1000).
-    Fields("nextPageToken, files[name=\"Hello World Doc\" and not(trashed)](id, name, trashed)").
+    Fields("nextPageToken, files[name=\"Hello World Doc\"](id, name)").
     OrderBy("name").Do()
   if err != nil {
     log.Fatalf("Unable to retrieve files: %v", err)
@@ -125,7 +124,7 @@ func main() {
   if len(r.Files) > 0 {
     sort.Slice(r.Files, func(i, j int) bool { return r.Files[i].Name < r.Files[j].Name })
     for _, i := range r.Files {
-      fmt.Printf("%s (%s %v)\n", i.Name, i.Id, i.Trashed)
+      fmt.Printf("%s (%s)\n", i.Name, i.Id)
     }
     fmt.Println("-------")
     fmt.Println(len(r.Files), "total files")
@@ -181,12 +180,15 @@ func main() {
   // }
   // fmt.Println("%v", nf2)
 
-  rdr := strings.NewReader(data.Contents)
-
-  if _, err := srv.Files.Update(data.DocId, nil).Media(rdr).Do(); err != nil {
-    log.Fatalf("Failed to update doc: %v", err)
-  }
-  fmt.Println("Update pushed")
+  // file := "private/doc.html"
+  // f, err := os.Open(file)
+  // if err != nil {
+  //   log.Fatalf("Couldn't open %s: %v", file, err)
+  // }
+  // if _, err := srv.Files.Update(data.DocId, nil).Media(f).Do(); err != nil {
+  //   log.Fatalf("Failed to update doc: %v", err)
+  // }
+  // fmt.Println("Update pushed")
 
   // abt, err := srv.About.Get().Fields("importFormats").Do()
   // if err != nil {
@@ -196,4 +198,25 @@ func main() {
   // for k, v := range abt.ImportFormats {
   //   fmt.Printf("%s: %v\n", k, v)
   // }
+
+  // abt, err := srv.About.Get().Fields("exportFormats").Do()
+  // if err != nil {
+  //   log.Fatalf("Failed to retrieve About: %v", err)
+  // }
+  // fmt.Printf("About:\n%v\n\n", abt)
+  // for k, v := range abt.ExportFormats {
+  //   fmt.Printf("%s: %v\n", k, v)
+  // }
+
+  fmt.Printf("Downloading and printing docid %s\n", data.DocId)
+  res, err := srv.Files.Export(data.DocId, "text/html").Download()
+  if err != nil {
+    log.Fatalf("Failed to export doc: %v\n", err)
+  }
+  defer res.Body.Close()
+  b, err = ioutil.ReadAll(res.Body)
+  if err != nil {
+    log.Fatalf("Failed to read http.Response.Body: %v\n", err)
+  }
+  fmt.Printf("%s", b)
 }
